@@ -5366,6 +5366,57 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         }
     #endif /* INCLUDE_vTaskSuspend */
 }
+/*-----------------------------------------------------------*/
+
+#if ( (configUSE_TRACE_FACILITY == 1) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) )
+
+    void vTaskGetStackDump( TaskHandle_t xTask, uint32_t ulStackDepth, char * pcWriteBuffer, uint32_t size )
+    {
+        TCB_t * pxTCB;
+        StackType_t * pxStackBase;
+        char * wb;
+        uint32_t len;
+
+        /* xTask is NULL then get the state of the calling task. */
+        pxTCB = prvGetTCBFromHandle( xTask );
+
+        /* Calculate the base of stack address.  This depends on whether the stack
+         * grows from high memory to low or vice versa.
+         */
+        #if ( portSTACK_GROWTH < 0 )
+            {
+                pxStackBase = &( pxTCB->pxStack[ ulStackDepth - ( uint32_t ) 1 ] );
+                pxStackBase = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
+
+                /* Check the alignment of the calculated base of stack is correct. */
+                configASSERT( ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase & ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) == 0UL ) );
+            }
+        #else /* portSTACK_GROWTH */
+            {
+                pxStackBase = pxTCB->pxStack;
+
+                /* Check the alignment of the stack base is correct. */
+                configASSERT( ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase & ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) == 0UL ) );
+            }
+        #endif /* portSTACK_GROWTH */
+
+        wb = pcWriteBuffer;
+        len = size;
+
+        pcWriteBuffer += snprintf( pcWriteBuffer, len, "%s stack growth begin @ %p\n\r", pxTCB->pcTaskName, pxStackBase );
+        len = size - ( pcWriteBuffer - wb ) * sizeof( *pcWriteBuffer );
+
+        while( ulStackDepth-- )
+        {
+            pcWriteBuffer += snprintf( pcWriteBuffer, len, "%p: %-.*x\n\r", pxStackBase, sizeof( StackType_t ) << 1, *pxStackBase );
+            len = size - ( pcWriteBuffer - wb ) * sizeof( *pcWriteBuffer );
+            pxStackBase += portSTACK_GROWTH;
+        }
+        snprintf(pcWriteBuffer, len, "\n\r");
+    }
+
+#endif /* ( (configUSE_TRACE_FACILITY == 1) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) ) */
+/*-----------------------------------------------------------*/
 
 /* Code below here allows additional code to be inserted into this source file,
  * especially where access to file scope functions and data is needed (for example
