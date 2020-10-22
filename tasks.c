@@ -5370,57 +5370,85 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 #if ( (configUSE_TRACE_FACILITY == 1) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) )
 
-void vTaskGetStackDump( TaskHandle_t xTask, uint32_t ulStackDepth, char * pcWriteBuffer, uint32_t size )
-{
-    TCB_t * pxTCB;
-    StackType_t * pxStackBase;
-    char * bb;
-    uint32_t len;
-
-    /* xTask is NULL then get the state of the calling task. */
-    pxTCB = prvGetTCBFromHandle( xTask );
-
-    /* Calculate the base of stack address.  This depends on whether the stack
-     * grows from high memory to low or vice versa.
-     */
-    #if ( portSTACK_GROWTH < 0 )
-        {
-            pxStackBase = &( pxTCB->pxStack[ ulStackDepth - ( uint32_t ) 1 ] );
-            pxStackBase = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
-
-            /* Check the alignment of the calculated base of stack is correct. */
-            configASSERT( ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase & ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) == 0UL ) );
-        }
-    #else /* portSTACK_GROWTH */
-        {
-            pxStackBase = pxTCB->pxStack;
-
-            /* Check the alignment of the stack base is correct. */
-            configASSERT( ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase & ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) == 0UL ) );
-        }
-    #endif /* portSTACK_GROWTH */
-
-    bb = pcWriteBuffer;
-
-    pcWriteBuffer += sprintf( pcWriteBuffer, "%s stack growth begin @ %p\n\r", pxTCB->pcTaskName, pxStackBase );
-    len = size - ( pcWriteBuffer - bb ) * sizeof( *pcWriteBuffer );
-
-    while( (ulStackDepth--) && (len > sizeof( StackType_t ) << 4) )
+    void vTaskGetStackDump( TaskHandle_t xTask,
+                            uint32_t ulStackDepth,
+                            char * pcWriteBuffer,
+                            uint32_t size )
     {
-    	pcWriteBuffer += sprintf( pcWriteBuffer, "%p: %-.*"
-    			#if ( (StackType_t == uint32_t) )
-    			    "l"
-                #elif ( (StackType_t == uint64_t) )
-                    "ll"
-                #elif ( (StackType_t == size_t) )
-                    "z"
-                #endif
-                    "x\n\r",
-                    pxStackBase, sizeof( StackType_t ) << 1, *pxStackBase );
-        len = size - ( pcWriteBuffer - bb ) * sizeof( *pcWriteBuffer );
-        pxStackBase += portSTACK_GROWTH;
-    }
-}
+        TCB_t * pxTCB;
+        StackType_t * pxStackBase;
+        char * wb;
+        uint32_t len;
+
+		/* xTask is NULL then get the state of the calling task. */
+		pxTCB = prvGetTCBFromHandle( xTask );
+
+		/* Calculate the base of stack address.  This depends on whether the stack
+		* grows from high memory to low or vice versa.
+		*/
+		#if ( portSTACK_GROWTH < 0 )
+		{
+			pxStackBase = &( pxTCB->pxStack[ ulStackDepth - ( uint32_t ) 1 ] );
+			pxStackBase = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) ); /*lint !e923 !e9033 !e9078 MISRA exception.  Avoiding casts between pointers and integers is not practical.  Size differences accounted for using portPOINTER_SIZE_TYPE type.  Checked by assert(). */
+
+			/* Check the alignment of the calculated base of stack is correct. */
+			configASSERT( ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase & ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) == 0UL ) );
+		}
+		#else /* portSTACK_GROWTH */
+		{
+			pxStackBase = pxTCB->pxStack;
+
+			/* Check the alignment of the stack base is correct. */
+			configASSERT( ( ( ( portPOINTER_SIZE_TYPE ) pxStackBase & ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) == 0UL ) );
+		}
+		#endif /* portSTACK_GROWTH */
+
+		wb = pcWriteBuffer;
+		len = size;
+
+		#if ( (StackType_t == uint32_t) )
+			#define STACK_VAL_FMT "%-.*lx "
+		#elif ( (StackType_t == uint64_t) )
+			#define STACK_VAL_FMT "%-.*llx "
+		#elif ( (StackType_t == size_t) )
+			#define STACK_VAL_FMT "%-.*zx "
+		#else
+			#define STACK_VAL_FMT "%-.*x "
+		#endif
+
+		#define LENFMT ( sizeof(StackType_t ) << 1 )
+
+		while( ( ulStackDepth >= 4 ) && ( (sizeof( StackType_t ) << 4) < len ) )
+		{
+			pcWriteBuffer += sprintf( pcWriteBuffer, "%p: " STACK_VAL_FMT STACK_VAL_FMT STACK_VAL_FMT STACK_VAL_FMT "\n\r",
+					pxStackBase,
+					LENFMT, pxStackBase[0],
+					LENFMT, pxStackBase[portSTACK_GROWTH],
+					LENFMT, pxStackBase[2*portSTACK_GROWTH],
+					LENFMT, pxStackBase[3*portSTACK_GROWTH] );
+			len = size - ( pcWriteBuffer - wb ) * sizeof( *pcWriteBuffer );
+			pxStackBase += portSTACK_GROWTH * 4;
+			ulStackDepth -= 4;
+		}
+
+		if( (sizeof( StackType_t ) << 4) < len )
+		{
+			pcWriteBuffer += sprintf( pcWriteBuffer, "%p: ", pxStackBase );
+			switch( ulStackDepth )
+			{
+			case 3:
+				pcWriteBuffer += sprintf( pcWriteBuffer, STACK_VAL_FMT, LENFMT, *pxStackBase );
+				pxStackBase += portSTACK_GROWTH;
+			case 2:
+				pcWriteBuffer += sprintf( pcWriteBuffer, STACK_VAL_FMT, LENFMT, *pxStackBase );
+				pxStackBase += portSTACK_GROWTH;
+			case 1:
+				pcWriteBuffer += sprintf( pcWriteBuffer, STACK_VAL_FMT, LENFMT, *pxStackBase );
+			}
+		}
+		#undef STACK_VAL_FMT
+		#undef LENFMT
+	}
 
 #endif /* ( (configUSE_TRACE_FACILITY == 1) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) ) */
 /*-----------------------------------------------------------*/

@@ -3044,7 +3044,13 @@ TaskHandle_t pvTaskIncrementMutexHeldCount( void ) PRIVILEGED_FUNCTION;
  */
 void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNCTION;
 
-void vTaskGetStackDump( TaskHandle_t xTask, uint32_t ulStackDepth, char * pcWriteBuffer, uint32_t size );
+/*
+ *
+ */
+void vTaskGetStackDump( TaskHandle_t xTask,
+                        uint32_t ulStackDepth,
+                        char * pcWriteBuffer,
+                        uint32_t size );
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus
