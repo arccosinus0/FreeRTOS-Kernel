@@ -5370,6 +5370,8 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 #if ( (configUSE_TRACE_FACILITY == 1) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) )
 
+	#define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
+
     void vTaskGetStackDump( TaskHandle_t xTask,
                             uint32_t ulStackDepth,
                             char * pcWriteBuffer,
